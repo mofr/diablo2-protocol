@@ -1,3 +1,4 @@
+require('console-stamp')(console, '[HH:MM:ss.l]');
 const { supportedVersions, defaultVersion } = require('../..')
 
 if (process.argv.length !== 4) {
@@ -139,6 +140,7 @@ const sidPort = 6112;
 const d2gsPort = 4000;
 let mcpPort = 6113;
 let mcpIp = null;
+let skipPing = true;
 
 const trackedPorts = new Set([sidPort, d2gsPort, mcpPort]);
 
@@ -150,8 +152,10 @@ function displayD2gsToClient (data) {
       const parsed = d2gsToClient.parsePacketBuffer('packet', data).data;
 
       const { name, params } = parsed;
+      if (skipPing && name === "D2GS_PONG")
+          return;
       wss.broadcast(JSON.stringify({ protocol: 'd2gsToClient', name, params }));
-      console.info('d2gsToClient (uncompressed): ', name, JSON.stringify(params));
+      console.info('d2gsToClient (uncompressed): ', '0x' + data[0].toString(16), name, JSON.stringify(params));
       if (name === 'D2GS_NEGOTIATECOMPRESSION' && params.compressionMode !== 0) {
         console.log('enable compression');
         compression = true
@@ -168,8 +172,9 @@ function displayD2gsToClient (data) {
 function displayParsed (proto, protoName, data, raw = false) {
   try {
     const { name, params } = proto.parsePacketBuffer('packet', data).data;
-    console.log(protoName, ':', name, JSON.stringify(params));
-    return { name, params };
+    if (skipPing && name === "D2GS_PING")
+        return { name, params };
+    console.log(protoName, ':', '0x' + data[0].toString(16), name, JSON.stringify(params));
     wss.broadcast(JSON.stringify({ protocol: protoName, name, params }))
     if (raw) console.log('raw', protoName, name, data.toString('hex'))
     messagesToServer.push(`${protoName}:${name} ${JSON.stringify(params)}`)
@@ -253,9 +258,13 @@ function displayBnftpToServer (data) {
 
 function parsePacket(data, srcPort, dstPort) {
   if (trackedPorts.has(srcPort)) {
+    if (data[0] !== 143)
+      console.log('onSessionDataRecv', data.length, 'bytes')
     onSessionDataRecv(data);
   }
   else if (trackedPorts.has(dstPort)) {
+    if (data[0] !== 109)
+      console.log('onSessionDataSend', data.length, 'bytes')
     onSessionDataSend(data);
   }
 

@@ -4,6 +4,7 @@
   "private": true,
   "dependencies": {
     "cap": "^0.2.1",
+    "console-stamp": "^0.2.9",
     "express": "^4.16.4",
     "pug": "^2.0.3",
     "ws": "^6.1.2"
