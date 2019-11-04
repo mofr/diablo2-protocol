@@ -109,9 +109,11 @@ let messagesToClient = [];
 let messagesToServer = [];
 
 splitter.on('data', data => {
-  const uncompressedData = decompress(data)
+  if (compression) {
+    data = decompress(data)
+  }
 
-  toClientParser.write(uncompressedData)
+  toClientParser.write(data)
 });
 
 toClientParser.on('data', ({ data, buffer }) => {
@@ -173,6 +175,14 @@ function displayD2gsToClient (data) {
       return;
     wss.broadcast(JSON.stringify({protocol: 'd2gsToClient', name, params}));
     console.info('d2gsToClient (uncompressed): ', '0x' + packet.buffer[0].toString(16), name, JSON.stringify(params));
+    if (name === 'D2GS_ITEMACTIONWORLD' || name === 'D2GS_ITEMACTIONOWNED') {
+      try {
+        itemParams = itemParser(packet.buffer);
+        console.log('Item:', itemParams.name);
+      } catch (error) {
+        console.error('Failed to parse item');
+      }
+    }
     if (name === 'D2GS_NEGOTIATECOMPRESSION' && params.compressionMode !== 0) {
       console.log('enable compression');
       compression = true;
