@@ -144,28 +144,39 @@ let skipPing = true;
 
 const trackedPorts = new Set([sidPort, d2gsPort, mcpPort]);
 
-function displayD2gsToClient (data) {
+function parsePackets(protocol, data, protocolName) {
+  var packets = [];
   try {
-    if (!compression) {
-      // if (data[0] !== 0xaf) { data = data.slice(1) }
-
-      const parsed = d2gsToClient.parsePacketBuffer('packet', data).data;
-
-      const { name, params } = parsed;
-      if (skipPing && name === "D2GS_PONG")
-          return;
-      wss.broadcast(JSON.stringify({ protocol: 'd2gsToClient', name, params }));
-      console.info('d2gsToClient (uncompressed): ', '0x' + data[0].toString(16), name, JSON.stringify(params));
-      if (name === 'D2GS_NEGOTIATECOMPRESSION' && params.compressionMode !== 0) {
-        console.log('enable compression');
-        compression = true
-      }
-    } else {
-      splitter.write(data)
-    }
+    do {
+      const packet = protocol.parsePacketBuffer('packet', data);
+      packets.push(packet);
+      data = data.slice(packet.metadata.size);
+    } while(data.length > 0);
   } catch (error) {
-    console.log('d2gsToClient : ', error.message);
-    console.log('raw', 'd2gsToClient', data)
+    console.log(protocolName + ' :', error.message);
+    console.log('raw', 'd2gsToClient', data);
+  }
+  return packets;
+}
+
+function displayD2gsToClient (data) {
+  if (compression) {
+    splitter.write(data);
+    return;
+  }
+
+  const packets = parsePackets(d2gsToClient, data, 'd2gsToClient');
+  for (let i = 0; i < packets.length; ++i) {
+    packet = packets[i];
+    const {name, params} = packet.data;
+    if (skipPing && name === "D2GS_PONG")
+      return;
+    wss.broadcast(JSON.stringify({protocol: 'd2gsToClient', name, params}));
+    console.info('d2gsToClient (uncompressed): ', '0x' + packet.buffer[0].toString(16), name, JSON.stringify(params));
+    if (name === 'D2GS_NEGOTIATECOMPRESSION' && params.compressionMode !== 0) {
+      console.log('enable compression');
+      compression = true;
+    }
   }
 }
 
